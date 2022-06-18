@@ -35,7 +35,6 @@ type
     class function TrimLeft(s: string; illegalChars: TIllegalChars = [#32]): string;
     class function TrimRight(s: string; illegalChars: TIllegalChars = [#32]): string;
     class function Underscored(ACammelCaseString: string): string;
-    class function HtmlDecode(Raw: string): string;
     class function Escape(s: string): string;
     class function Unescape(s: string): string;
     class function StrToBool(s: string): Boolean;
@@ -74,8 +73,6 @@ type
   end;
 
 implementation
-
-uses IdURI;
 
 { TRJSON }
 
@@ -521,11 +518,6 @@ begin
     FreeMem(buffer_1);
     FreeMem(buffer_2);
   end;
-end;
-
-class function TRJSONHelper.HtmlDecode(Raw: string): string;
-begin
-  Result := TIdURI.URLDecode(Raw)
 end;
 
 class function TRJSONHelper.Escape(s: string): string;
