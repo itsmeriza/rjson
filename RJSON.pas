@@ -1,3 +1,15 @@
+{ ***************************************************************************
+
+   JSON to object and object to JSON converter. JSON library for Delphi
+   (Delphi 6 or above) and Lazarus.
+
+   Author: Riza Anshari
+   Github: github.com/itsmeriza
+   Twitter: @RizaAnshari
+   Email: rizast@gmail.com
+
+ *************************************************************************** }
+
 unit RJSON;
 
 interface
