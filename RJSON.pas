@@ -248,7 +248,7 @@ begin
         if objCollection.Count > 0 then
           Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ','
         else
-          Result := Copy(Result, 0, Length(Result)) + ',';
+          Result := Copy(Result, 0, Length(Result)) + ','; 
       end
       else if propInfo^.PropType^.Name = LIST_CLASS_NAME then
       begin
@@ -274,14 +274,13 @@ begin
       else if (propInfo^.PropType^.Kind = tkClass) then
       begin
         o := GetObjectProp(AObject, propInfo^.Name);
+        el := '';
+        if AJSONOption = joAssociate then
+          el := Format('"%s":', [propInfo^.Name]);
         if o <> nil then
-        begin
-          el := '';
-          if AJSONOption = joAssociate then
-            el := Format('"%s":', [propInfo^.Name]);
-
-          Result := Result + el + DoToJSON(o, AJSONOption);
-        end;
+          Result := Result + el + DoToJSON(o, AJSONOption)
+        else
+          Result := Result + el + 'null,';
       end
       else begin
         value := VarToStr(GetPropValue(AObject, propInfo^.Name));
