@@ -2,7 +2,7 @@
 JSON to object and object to JSON converter. JSON library for Delphi (Delphi 6 or above) and Lazarus.
 
 ## Why you should use this library
-RJSON was developed to simplify the JSON serialization and parsing process. What's special about this library is that the RJSON parsing process converts JSON into objects with the same data structure as the original object.
+RJSON was developed to simplify the JSON serialization and parsing process. What's special about this library is that the RJSON parsing process converts JSON into objects with the same data structure as the original object. This library also supports JSON operations for nested objects, both parsing and serialization.
 
 For example serialized JSON as follows:
 
@@ -60,3 +60,4 @@ The JSON will be converted into an object with the following data structure.
     property Downlines: TCollection read fDownlines write fDownlines;
   end;
 ```
+This library is very easy to use. Please see the sample projects. :)
