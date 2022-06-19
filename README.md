@@ -60,4 +60,4 @@ The JSON will be converted into an object with the following data structure.
     property Downlines: TCollection read fDownlines write fDownlines;
   end;
 ```
-How to use it is very easy. Please see the sample projects. :)
+This library is very easy to use. Please see the sample projects. :)
