@@ -8,48 +8,55 @@ For example serialized JSON as follows:
 
 ```js
 {
-  "MemberId":"2022010111",
-  "UserId":"abdul",
-  "RealName":"Abdul Latief",
-  "GenderId":0,
-  "GenderName":"Male",
-  "Downlines":[
-    {
-      "MemberId":"2022010112",
-      "UserId":"setiab",
-      "RealName":"Setia Budi",
-      "GenderId":0,
-      "GenderName":"Male",
-      "Downlines":null
-    },
-    {
-      "MemberId":"2022010113",
-      "UserId":"julia",
-      "RealName":"Julia Rahman",
-      "GenderId":1,
-      "GenderName":"Female",
-      "Downlines":null
-    },
-  ]
+	"MemberId": 202200112,
+	"RealName": "Ahmad Zarkowi",
+	"PlaceOfBirth": "Surabaya",
+	"DateOfBirth": 647740800,
+	"Upline": {
+		"MemberId": 202200111,
+		"RealName": "Syueb Hamdan",
+		"PlaceOfBirth": "Jakarta",
+		"DateOfBirth": 633830400,
+		"Upline": null,
+		"Downlines": []
+	},
+	"Downlines": [{
+		"MemberId": 202200113,
+		"RealName": "Lia Hamzah",
+		"PlaceOfBirth": "Jakarta",
+		"DateOfBirth": 637718400,
+		"Upline": null,
+		"Downlines": []
+	}, {
+		"MemberId": 202200114,
+		"RealName": "Nur Azizah Putri",
+		"PlaceOfBirth": "Serpong",
+		"DateOfBirth": 667785600,
+		"Upline": null,
+		"Downlines": []
+	}]
 }
 ```
 The JSON will be converted into an object with the following data structure.
 
 ```delphi
-TMember = class(TCollectionItem)
-private
-  fMemberId: string;
-  fUserId: string;
-  fRealName: string;
-  fGenderId: Byte;
-  fGenderName: string;
-  fDownlines: TCollection;
-published
-  property MemberId: string read fMemberId write fMemberId;
-  property UserId: string read fUserId write fUserId;
-  property RealName: string read fReadName write fRealName;
-  property GenderId: Byte read fGenderId write fGenderId;
-  property GenderName: string read fGenderName write fGenderName;
-  property Downlines: TCollection read fDownlines write fDownlines;
-end;
+  TMember = class(TCollectionItem)
+  private
+    fUserId: Integer;
+    fRealName: string;
+    fPlaceOfBirth: string;
+    fDownlines: TCollection;
+    fDateOfBirth: TDateTime;
+    fUpline: TMember;
+  public
+    constructor Create(Collection: TCollection); override;
+    destructor Destroy; override;
+  published
+    property MemberId: Integer read fUserId write fUserId;
+    property RealName: string read fRealName write fRealName;
+    property PlaceOfBirth: string read fPlaceOfBirth write fPlaceOfBirth;
+    property DateOfBirth: TDateTime read fDateOfBirth write fDateOfBirth;
+    property Upline: TMember read fUpline write fUpline;
+    property Downlines: TCollection read fDownlines write fDownlines;
+  end;
 ```
