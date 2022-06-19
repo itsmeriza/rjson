@@ -622,28 +622,6 @@ begin
   Result := Copy(Result, 1, Length(Result)-1);
 end;
 
-{class function TRJSONHelper.Unescape(s: string): string;
-var
-  i, len: Integer;
-  c: Char;
-  cc: string;
-  ps: PChar;
-begin
-  Result := '';
-  len := Length(s);
-  ps := PChar(s);
-  cc := #0;
-  for i := 0 to len - 1 do
-  begin
-    c := ps[i];
-    if i <= len - 1 then
-      cc := ps[i + 1];
-
-    if (c <> '\') or ((c = '\') and (cc = c)) then
-      Result := Result + c
-  end;
-end;}
-
 class procedure TRJSONHelper.ClearList(List: TList);
 var
   i: Integer;
