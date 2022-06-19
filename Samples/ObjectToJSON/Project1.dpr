@@ -75,7 +75,7 @@ begin
   downline.PlaceOfBirth := 'Serpong';
   downline.DateOfBirth := EncodeDate(1991, 3, 1);
 
-  json := TRJSON.ToJSON(member, joAssociate);
+  json := TRJSON.ToJSON(member);
   WriteLn(json);
   ReadLn;
 end.

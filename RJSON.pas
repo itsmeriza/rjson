@@ -51,7 +51,7 @@ type
     class procedure DoProcessArray(Instance: TObject; V: PValue);
   public
     class procedure ToObject(Instance: TPersistent; const JSON: string);
-    class function ToJSON(Instance: TObject; Option: TRJSONOption = joIndexed): string; overload; virtual;
+    class function ToJSON(Instance: TObject; Option: TRJSONOption = joAssociate): string; overload; virtual;
     function ToJSON(AJSONOption: TRJSONOption = joIndexed): string; overload;
   end;
 
