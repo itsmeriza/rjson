@@ -14,7 +14,7 @@ const
 
 type
   TRJSONOption = (joAssociate, joIndexed);
-  TValueTypes = (vtPrimitive, vtArray, vtObject);
+  TValueTypes = (vtPrimitive, vtArray, vtObject, vtNull);
   
   TValue = record
     name: string;
@@ -91,7 +91,9 @@ begin
 
     Result^.name := tokens[0];
     Result^.value := tokens[1];
-    if c = BRACKET_OPEN then
+    if LowerCase(v) = 'null' then
+      Result^.vtype := vtNull
+    else if c = BRACKET_OPEN then
       Result^.vtype := vtArray
     else if c = BRACKET_CURLY_OPEN then
       Result^.vtype := vtObject
@@ -146,7 +148,8 @@ begin
       begin
         v^.name := TRJSONHelper.Trim(v^.name, ['"']);
         o := GetObjectProp(Instance, v^.name);
-        DoProcessObject(o, v^.value);
+        if o <> nil then
+          DoProcessObject(o, v^.value);
       end
       else if v^.vtype = vtArray then
         DoProcessArray(Instance, v);
