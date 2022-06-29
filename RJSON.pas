@@ -7,7 +7,6 @@
    Github: github.com/itsmeriza
    Twitter: @RizaAnshari
    Email: rizast@gmail.com
-
    License: MIT License
 
    Copyright (c) 2022 Riza Anshari
@@ -87,6 +86,8 @@ type
     class procedure ToObject(Instance: TPersistent; const JSON: string);
     class function ToJSON(Instance: TObject; Option: TRJSONOption = joAssociate): string; overload; virtual;
     function ToJSON(AJSONOption: TRJSONOption = joIndexed): string; overload;
+    class procedure Clone(Dest, Source: TObject); overload;
+    procedure Clone(Dest: TObject); overload;
   end;
 
   TRJSONListHelper = class(TRJSON)
@@ -361,6 +362,28 @@ class function TRJSON.ToJSON(Instance: TObject;
 begin
   Result := DoToJSON(Instance, Option);
   Result := Copy(Result, 1, Length(Result) - 1);
+end;
+
+class procedure TRJSON.Clone(Dest, Source: TObject);
+var
+  count: Integer;
+  list: PPropList;
+  i: Integer;
+  pi: PPropInfo;
+  v: Variant;
+begin
+  count := GetPropList(Source, list);
+  for i := 0 to count - 1 do
+  begin
+    pi := list[i];
+    v := GetPropValue(Source, pi^.Name);
+    SetPropValue(Dest, pi^.Name, v);
+  end;
+end;
+
+procedure TRJSON.Clone(Dest: TObject);
+begin
+  TRJSON.Clone(Dest, Self);
 end;
 
 { TRJSONHelper }
