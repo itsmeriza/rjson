@@ -83,9 +83,9 @@ type
     class procedure DoProcessObject(Instance: TObject; JSON: string);
     class procedure DoProcessArray(Instance: TObject; V: PValue);
   public
-    class procedure ToObject(Instance: TPersistent; const JSON: string);
+    class procedure ToObject(Instance: TPersistent; const JSON: string); 
     class function ToJSON(Instance: TObject; Option: TRJSONOption = joAssociate): string; overload; virtual;
-    function ToJSON(AJSONOption: TRJSONOption = joIndexed): string; overload;
+    function ToJSON(AJSONOption: TRJSONOption = joAssociate): string; overload;
     class procedure Clone(Dest, Source: TObject); overload;
     procedure Clone(Dest: TObject); overload;
   end;
@@ -113,31 +113,24 @@ implementation
 
 class function TRJSON.GetValue(Value: string): PValue;
 var
-  tokens: TStringList;
-  v: string;
   c: Char;
+  p: Integer;
 begin
   New(Result);
-  tokens := TStringList.Create;
-  try
-    TRJSONHelper.JSONSplit(tokens, Value, ':');
-    v := Trim(tokens[1]);
-    c := PChar(v)[0];
 
-    Result^.name := tokens[0];
-    Result^.value := tokens[1];
-    if LowerCase(v) = 'null' then
-      Result^.vtype := vtNull
-    else if c = BRACKET_OPEN then
-      Result^.vtype := vtArray
-    else if c = BRACKET_CURLY_OPEN then
-      Result^.vtype := vtObject
-    else begin
-      Result^.vtype := vtPrimitive;
-    end;
-  finally
-    tokens.Free;
-  end;
+  p := Pos(':', Value);
+  Result^.name := Copy(Value, 1, p-1);
+  Result^.value := Copy(Value, p+1, Length(Value));
+  c := PChar(Result^.value)[0];
+
+  if LowerCase(Result^.value) = 'null' then
+    Result^.vtype := vtNull
+  else if c = BRACKET_OPEN then
+    Result^.vtype := vtArray
+  else if c = BRACKET_CURLY_OPEN then
+    Result^.vtype := vtObject
+  else
+    Result^.vtype := vtPrimitive;
 end;
 
 class procedure TRJSON.DoProcessObject(Instance: TObject; JSON: string);
@@ -159,35 +152,35 @@ begin
       token := tokens[i];
       v := GetValue(token);
       try
-      if v^.vtype = vtPrimitive then
-      begin
-        p := Copy(v^.name, 2, Length(v^.name)-2);
-        try
-          propInfo := GetPropInfo(Instance, p);
-          if propInfo <> nil then
-          begin
-            value := TRJSONHelper.Unescape(TRJSONHelper.Trim(v^.value, ['"']));
-            if propInfo^.PropType^.Name = 'Boolean' then
-              value := TRJSONHelper.StrToBool(v^.value)
-            else if propInfo^.PropType^.Name = 'TDateTime' then
-              value := UnixToDateTime(StrToIntDef(value, 0))
-            else if ((propInfo^.PropType^.Name = 'String') or (propInfo^.PropType^.Name = 'AnsiString')) and (value = 'null') then
-                value := '';
+        if v^.vtype = vtPrimitive then
+        begin
+          p := Copy(v^.name, 2, Length(v^.name)-2);
+          try
+            propInfo := GetPropInfo(Instance, p);
+            if propInfo <> nil then
+            begin
+              value := TRJSONHelper.Unescape(TRJSONHelper.Trim(v^.value, ['"']));
+              if propInfo^.PropType^.Name = 'Boolean' then
+                value := TRJSONHelper.StrToBool(v^.value)
+              else if propInfo^.PropType^.Name = 'TDateTime' then
+                value := UnixToDateTime(StrToIntDef(value, 0))
+              else if ((propInfo^.PropType^.Name = 'String') or (propInfo^.PropType^.Name = 'AnsiString')) and (value = 'null') then
+                  value := '';
 
-            SetPropValue(Instance, p, value);
+              SetPropValue(Instance, p, value);
+            end;
+          except
           end;
-        except
-        end;
-      end
-      else if v^.vtype = vtObject then
-      begin
-        v^.name := TRJSONHelper.Trim(v^.name, ['"']);
-        o := GetObjectProp(Instance, v^.name);
-        if o <> nil then
-          DoProcessObject(o, v^.value);
-      end
-      else if v^.vtype = vtArray then
-        DoProcessArray(Instance, v);
+        end
+        else if v^.vtype = vtObject then
+        begin
+          v^.name := TRJSONHelper.Trim(v^.name, ['"']);
+          o := GetObjectProp(Instance, v^.name);
+          if o <> nil then
+            DoProcessObject(o, v^.value);
+        end
+        else if v^.vtype = vtArray then
+          DoProcessArray(Instance, v);
       finally
         Dispose(v);
       end;
