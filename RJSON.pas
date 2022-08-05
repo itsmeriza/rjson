@@ -83,7 +83,7 @@ type
     class procedure DoProcessObject(Instance: TObject; JSON: string);
     class procedure DoProcessArray(Instance: TObject; V: PValue);
   public
-    class procedure ToObject(Instance: TPersistent; const JSON: string); 
+    class procedure ToObject(Instance: TObject; const JSON: string); 
     class function ToJSON(Instance: TObject; Option: TRJSONOption = joAssociate): string; overload; virtual;
     function ToJSON(AJSONOption: TRJSONOption = joAssociate): string; overload;
     class procedure Clone(Dest, Source: TObject); overload;
@@ -190,7 +190,7 @@ begin
   end;
 end;
 
-class procedure TRJSON.ToObject(Instance: TPersistent; const JSON: string);
+class procedure TRJSON.ToObject(Instance: TObject; const JSON: string);
 begin
   DoProcessObject(Instance, JSON);
 end;
@@ -253,7 +253,7 @@ begin
   try
     for i := 0 to count - 1 do
     begin
-      propInfo := list[i];
+      propInfo := list^[i];
       if (propInfo^.PropType^.Name = 'TCollection') then
       begin
         objCollection:= TCollection(GetObjectProp(AObject, propInfo^.Name));
@@ -295,7 +295,7 @@ begin
 
         for ii := 0 to objList.Count - 1 do
         begin
-          o := objList.Items[ii];
+          o := TObject(objList[ii]);
           Result := Result + DoToJSON(o, AJSONOption);
         end;
 
@@ -368,7 +368,7 @@ begin
   count := GetPropList(Source, list);
   for i := 0 to count - 1 do
   begin
-    pi := list[i];
+    pi := list^[i];
     v := GetPropValue(Source, pi^.Name);
     SetPropValue(Dest, pi^.Name, v);
   end;
