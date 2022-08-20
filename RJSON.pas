@@ -74,6 +74,7 @@ type
     class function ChangeDecimalSeparator(StringFloat: string; DecimalSeparator: Char): string;
     class function FloatToStr(Float: Extended; DecimalSeparator: Char = '.'): string;
     class function StrToFloat(StringFloat: string; DecimalSeparator: Char = '.'): Extended;
+    class function StrToFloatDef(StringFloat: string; Default: Extended = 0; DecimalSeparator: Char = '.'): Extended;
   end;
 
   TRJSON = class(TPersistent)
@@ -161,7 +162,12 @@ begin
             begin
               value := TRJSONHelper.Unescape(TRJSONHelper.Trim(v^.value, ['"']));
               if propInfo^.PropType^.Name = 'Boolean' then
-                value := TRJSONHelper.StrToBool(v^.value)
+                value := TRJSONHelper.StrToBool(value)
+              else if propInfo^.PropType^.Name = 'Double' then
+                value := TRJSONHelper.StrToFloatDef(value)
+              else if (propInfo^.PropType^.Name = 'SmallInt') or (propInfo^.PropType^.Name = 'Integer')
+                or (propInfo^.PropType^.Name = 'LargeInt') then
+                value := StrToIntDef(value, 0)
               else if propInfo^.PropType^.Name = 'TDateTime' then
                 value := UnixToDateTime(StrToIntDef(value, 0))
               else if ((propInfo^.PropType^.Name = 'String') or (propInfo^.PropType^.Name = 'AnsiString')) and (value = 'null') then
@@ -495,6 +501,7 @@ var
   c, cc: Char;
   isIllegal: Boolean;
 begin
+  Result := '';
   l := Length(s);
   cc := #0;
   for i := 0 to l - 1 do
@@ -507,7 +514,8 @@ begin
       Break;
   end;
 
-  Result := Copy(s, i+1, l);
+  if (i <= l-1) then
+    Result := Copy(s, i+1, l);
 end;
 
 class function TRJSONHelper.TrimRight(s: string;
@@ -517,7 +525,7 @@ var
   c, cc: Char;
   isIllegal: Boolean;
 begin
-  Result := s;
+  Result := '';
   l := Length(s);
   cc := #0;
   for i := l - 1 downto 0 do
@@ -530,7 +538,8 @@ begin
       Break;
   end;
 
-  Result := Copy(s, 1, i+1);
+  if (i >= 0) and not (c in illegalChars) then
+    Result := Copy(s, 1, i+1);
 end;
 
 class function TRJSONHelper.Underscored(ACammelCaseString: string): string;
@@ -732,6 +741,13 @@ class function TRJSONHelper.StrToFloat(StringFloat: string;
 begin
   StringFloat := TRJSONHelper.ChangeDecimalSeparator(StringFloat, DecimalSeparator);
   Result := SysUtils.StrToFloat(StringFloat);
+end;
+
+class function TRJSONHelper.StrToFloatDef(StringFloat: string;
+  Default: Extended; DecimalSeparator: Char): Extended;
+begin
+  StringFloat:= TRJSONHelper.ChangeDecimalSeparator(StringFloat, DecimalSeparator);
+  Result:= SysUtils.StrToFloatDef(StringFloat, Default);
 end;
 
 { TRJSONListHelper }
