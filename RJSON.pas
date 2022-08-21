@@ -108,6 +108,20 @@ type
     property Value: Boolean read fValue write fValue;
   end;
 
+  TRJSONStringHelper = class(TRJSON)
+  private
+    fValue: string;
+  published
+    property Value: string read fValue write fValue;
+  end;
+
+  TRJSONDoubleHelper = class(TRJSON)
+  private
+    fValue: Double;
+  published
+    property Value: Double read fValue write fValue;
+  end;
+
 implementation
 
 { TRJSON }
