@@ -43,7 +43,7 @@ const
   BRACKET_CURLY_OPEN = '{';
   BRACKET_CURLY_CLOSE = '}';
   LIST_CLASS_NAME = 'TList';
-  ESCAPE_CHARS = [#39, '"', '\', #10, #13, #9, #8, #12, #255];
+  ESCAPE_CHARS = ['"', '\', #10, #13, #9, #8, #12, #255];
 
 type
   TRJSONOption = (joAssociate, joIndexed);
