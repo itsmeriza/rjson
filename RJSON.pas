@@ -33,9 +33,11 @@
 
 unit RJSON;
 
+{$mode objfpc}{$H+}
+
 interface
 
-uses Classes, SysUtils, Dialogs, TypInfo, StrUtils, Variants, DateUtils;
+uses Classes, SysUtils, Variants, TypInfo;
 
 const
   BRACKET_OPEN = '[';
@@ -47,8 +49,8 @@ const
 
 type
   TRJSONOption = (joAssociate, joIndexed);
-  TValueTypes = (vtPrimitive, vtArray, vtObject, vtNull);
-  
+  TValueTypes = (vtPrimitive, vtArray, vtObject);
+
   TValue = record
     name: string;
     value: string;
@@ -59,6 +61,9 @@ type
   TIllegalChars = set of Char;
   TDelimiters = set of Char;
   TPersistentClasses = array of TPersistentClass;
+
+  { TRJSONHelper }
+
   TRJSONHelper = class
   public
     class procedure Split(list: TStringList; s: string; delimiter: Char = ',');
@@ -77,29 +82,44 @@ type
     class function StrToFloatDef(StringFloat: string; Default: Extended = 0; DecimalSeparator: Char = '.'): Extended;
   end;
 
+  { TRJSON }
+
   TRJSON = class(TPersistent)
   private
-    class function DoToJSON(AObject: TObject; AJSONOption: TRJSONOption): string;
     class function GetValue(Value: string): PValue;
     class procedure DoProcessObject(Instance: TObject; JSON: string);
     class procedure DoProcessArray(Instance: TObject; V: PValue);
+    class function DoToJSON(AObject: TObject; AJSONOption: TRJSONOption): string;
   public
-    class procedure ToObject(Instance: TObject; const JSON: string); 
-    class function ToJSON(Instance: TObject; Option: TRJSONOption = joAssociate): string; overload; virtual;
-    function ToJSON(AJSONOption: TRJSONOption = joAssociate): string; overload;
+    class procedure ToObject(Instance: TObject; const JSON: string);
+    class function ToJSON(AObject: TObject; AJSONOption: TRJSONOption = joAssociate): string; overload;
+    function ToJSON(AJSONOption: TRJSONOption = joAssociate): string; overload; virtual;
     class procedure Clone(Dest, Source: TObject); overload;
     procedure Clone(Dest: TObject); overload;
   end;
 
   TRJSONListHelper = class(TRJSON)
   private
-    fList: TList;
+    FList: TList;
   public
-    constructor Create; 
-    destructor Destroy; override;
+   constructor Create(AList: TList);
+   destructor Destroy; override;
   published
-    property List: TList read fList write fList;
+    property List: TList read FList write FList;
   end;
+
+  { TRJSONPairHelper }
+
+  TRJSONPairHelper = class(TRJSON)
+  private
+    fId: string;
+    fValue: string;
+  published
+    property Id: string read fId write fId;
+    property Value: string read fValue write fValue;
+  end;
+
+  { TRJSONBooleanHelper }
 
   TRJSONBooleanHelper = class(TRJSON)
   private
@@ -108,12 +128,16 @@ type
     property Value: Boolean read fValue write fValue;
   end;
 
+  { TRJSONStringHelper }
+
   TRJSONStringHelper = class(TRJSON)
   private
     fValue: string;
   published
     property Value: string read fValue write fValue;
   end;
+
+  { TRJSONDoubleHelper }
 
   TRJSONDoubleHelper = class(TRJSON)
   private
@@ -124,284 +148,12 @@ type
 
 implementation
 
-{ TRJSON }
-
-class function TRJSON.GetValue(Value: string): PValue;
-var
-  c: Char;
-  p: Integer;
-begin
-  New(Result);
-
-  p := Pos(':', Value);
-  Result^.name := Copy(Value, 1, p-1);
-  Result^.value := Copy(Value, p+1, Length(Value));
-  c := PChar(Result^.value)[0];
-
-  if LowerCase(Result^.value) = 'null' then
-    Result^.vtype := vtNull
-  else if c = BRACKET_OPEN then
-    Result^.vtype := vtArray
-  else if c = BRACKET_CURLY_OPEN then
-    Result^.vtype := vtObject
-  else
-    Result^.vtype := vtPrimitive;
-end;
-
-class procedure TRJSON.DoProcessObject(Instance: TObject; JSON: string);
-var
-  tokens: TStringList;
-  i: Integer;
-  token, p: string;
-  v: PValue;
-  propInfo: PPropInfo;
-  value: Variant;
-  o: TObject;
-begin
-  tokens := TStringList.Create;
-  try
-    JSON := TRJSONHelper.Trim(JSON, [BRACKET_CURLY_OPEN, BRACKET_CURLY_CLOSE]);
-    TRJSONHelper.JSONSplit(tokens, JSON);
-    for i := 0 to tokens.Count - 1 do
-    begin
-      token := tokens[i];
-      v := GetValue(token);
-      try
-        if v^.vtype = vtPrimitive then
-        begin
-          p := Copy(v^.name, 2, Length(v^.name)-2);
-          try
-            propInfo := GetPropInfo(Instance, p);
-            if propInfo <> nil then
-            begin
-              value := TRJSONHelper.Unescape(TRJSONHelper.Trim(v^.value, ['"']));
-              if propInfo^.PropType^.Name = 'Boolean' then
-                value := TRJSONHelper.StrToBool(value)
-              else if propInfo^.PropType^.Name = 'Double' then
-                value := TRJSONHelper.StrToFloatDef(value)
-              else if (propInfo^.PropType^.Name = 'SmallInt') or (propInfo^.PropType^.Name = 'Integer')
-                or (propInfo^.PropType^.Name = 'LargeInt') then
-                value := StrToIntDef(value, 0)
-              else if propInfo^.PropType^.Name = 'TDateTime' then
-                value := UnixToDateTime(StrToIntDef(value, 0))
-              else if ((propInfo^.PropType^.Name = 'String') or (propInfo^.PropType^.Name = 'AnsiString')) and (value = 'null') then
-                  value := '';
-
-              SetPropValue(Instance, p, value);
-            end;
-          except
-          end;
-        end
-        else if v^.vtype = vtObject then
-        begin
-          v^.name := TRJSONHelper.Trim(v^.name, ['"']);
-          o := GetObjectProp(Instance, v^.name);
-          if o <> nil then
-            DoProcessObject(o, v^.value);
-        end
-        else if v^.vtype = vtArray then
-          DoProcessArray(Instance, v);
-      finally
-        Dispose(v);
-      end;
-    end;
-  finally
-    tokens.Free;
-  end;
-end;
-
-class procedure TRJSON.ToObject(Instance: TObject; const JSON: string);
-begin
-  DoProcessObject(Instance, JSON);
-end;
-
-class procedure TRJSON.DoProcessArray(Instance: TObject; V: PValue);
-var
-  i: Integer;
-  item: TCollectionItem;
-  objList: TCollection;
-  tokens: TStringList;
-  token, s, name: string;
-begin
-  name := TRJSONHelper.Trim(V^.name, ['"']);
-  objList := TCollection(GetObjectProp(Instance, name));
-  tokens := TStringList.Create;
-  try
-    s := Copy(V^.value, 2, Length(V^.value)-2);
-    TRJSONHelper.JSONSplit(tokens, s);
-
-    for i := 0 to tokens.Count - 1 do
-    begin
-      token := tokens[i];
-      item := objList.Add;
-
-      DoProcessObject(item, token);
-    end;
-  finally
-    tokens.Free;
-  end;
-end;
-
-function TRJSON.ToJSON(AJSONOption: TRJSONOption): string;
-begin
-  Result := DoToJSON(Self, AJSONOption);
-  Result := Copy(Result, 1, Length(Result) - 1);
-end;
-
-class function TRJSON.DoToJSON(AObject: TObject;
-  AJSONOption: TRJSONOption): string;
-var
-  count: Integer;
-  list: PPropList;
-  propInfo: PPropInfo;
-  objList: TList;
-  objCollection: TCollection;
-  o: TObject;
-  i: Integer;
-  ii: Integer;
-  el, value: string;
-begin
-  if AJSONOption = joIndexed then
-    Result := BRACKET_OPEN
-  else
-    Result := BRACKET_CURLY_OPEN;
-
-  if AObject = nil then
-    Exit;
-
-  count := GetPropList(AObject, list);
-  try
-    for i := 0 to count - 1 do
-    begin
-      propInfo := list^[i];
-      if (propInfo^.PropType^.Name = 'TCollection') then
-      begin
-        objCollection:= TCollection(GetObjectProp(AObject, propInfo^.Name));
-        if objCollection.Count > 0 then
-        begin
-          el := BRACKET_OPEN;
-          if AJSONOption = joAssociate then
-            el := Format('"%s":%s', [propInfo^.Name, BRACKET_OPEN]);
-        end
-        else begin
-          if AJSONOption = joAssociate then
-            el := Format('"%s":%s', [propInfo^.Name, '[]']);
-        end;
-
-        Result := Result + el;
-
-        for ii := 0 to objCollection.Count - 1 do
-        begin
-          o := TObject(objCollection.Items[ii]);
-          Result := Result + DoToJSON(o, AJSONOption);
-        end;
-
-        if objCollection.Count > 0 then
-          Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ','
-        else
-          Result := Copy(Result, 0, Length(Result)) + ','; 
-      end
-      else if propInfo^.PropType^.Name = LIST_CLASS_NAME then
-      begin
-        objList := GetObjectProp(AObject, propInfo^.Name) as TList;
-        if objList.Count > 0 then
-        begin
-          el := BRACKET_OPEN;
-          if AJSONOption = joAssociate then
-            el := Format('"%s":%s', [propInfo^.Name, BRACKET_OPEN]);
-
-          Result := Result + el;
-        end;
-
-        for ii := 0 to objList.Count - 1 do
-        begin
-          o := TObject(objList[ii]);
-          Result := Result + DoToJSON(o, AJSONOption);
-        end;
-
-        if objList.Count > 0 then
-          Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ',';
-      end
-      else if (propInfo^.PropType^.Kind = tkClass) then
-      begin
-        o := GetObjectProp(AObject, propInfo^.Name);
-        el := '';
-        if AJSONOption = joAssociate then
-          el := Format('"%s":', [propInfo^.Name]);
-        if o <> nil then
-          Result := Result + el + DoToJSON(o, AJSONOption)
-        else
-          Result := Result + el + 'null,';
-      end
-      else begin
-        value := VarToStr(GetPropValue(AObject, propInfo^.Name));
-        if value = '' then
-          value := 'null'
-        else if propInfo^.PropType^.Name = 'Double' then
-          value := TRJSONHelper.ChangeDecimalSeparator(value, '.')
-        else if propInfo^.PropType^.Name = 'TDateTime' then
-          value := IntToStr(DateTimeToUnix(VarToDateTime(GetPropValue(AObject, propInfo^.Name))))
-        else if propInfo^.PropType^.Name = 'Boolean' then
-          value := LowerCase(value)
-        else if ((propInfo^.PropType^.Kind = tkString) or (propInfo^.PropType^.Kind = tkChar) or
-          (propInfo^.PropType^.Kind = tkWChar) or (propInfo^.PropType^.Kind = tkLString) or
-          (propInfo^.PropType^.Kind = tkWString)) and (value <> 'null') then
-
-            value := '"' + TRJSONHelper.Escape(value) + '"';
-
-        if AJSONOption = joAssociate then
-        begin
-          el := '"%s":%s';
-          el := Format(el, [propInfo^.Name, value]);
-        end
-        else
-          el := value;
-
-        Result := Result + el + ',';
-      end
-    end;
-  finally
-    Dispose(list);
-  end;
-
-  if AJSONOption = joIndexed then
-    Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ','
-  else
-    Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CURLY_CLOSE + ',';
-end;
-
-class function TRJSON.ToJSON(Instance: TObject;
-  Option: TRJSONOption): string;
-begin
-  Result := DoToJSON(Instance, Option);
-  Result := Copy(Result, 1, Length(Result) - 1);
-end;
-
-class procedure TRJSON.Clone(Dest, Source: TObject);
-var
-  count: Integer;
-  list: PPropList;
-  i: Integer;
-  pi: PPropInfo;
-  v: Variant;
-begin
-  count := GetPropList(Source, list);
-  for i := 0 to count - 1 do
-  begin
-    pi := list^[i];
-    v := GetPropValue(Source, pi^.Name);
-    SetPropValue(Dest, pi^.Name, v);
-  end;
-end;
-
-procedure TRJSON.Clone(Dest: TObject);
-begin
-  TRJSON.Clone(Dest, Self);
-end;
+Uses DateUtils;
 
 { TRJSONHelper }
 
-class procedure TRJSONHelper.Split(list: TStringList; s: string; delimiter: Char = ',');
+class procedure TRJSONHelper.Split(list: TStringList; s: string; delimiter: Char
+  );
 var
   i, len, p, pClosed: Integer;
   closed, found: Boolean;
@@ -415,7 +167,7 @@ begin
 
   if PChar(right)[len-1] <> delimiter then
     right := right + delimiter;
-    
+
   closed := True;
   found := False;
   pClosed := 0;
@@ -452,7 +204,7 @@ begin
 end;
 
 class procedure TRJSONHelper.JSONSplit(list: TStringList; s: string;
-  delimiter: Char = ',');
+  delimiter: Char);
 var
   i, len, p, count: Integer;
   closedQuote: Boolean;
@@ -463,7 +215,7 @@ begin
   len := Length(right);
   if len = 0 then
     Exit;
-    
+
   if PChar(right)[len-1] <> delimiter then
     right := right + delimiter;
 
@@ -499,8 +251,20 @@ begin
   end;
 end;
 
-class function TRJSONHelper.Trim(s: string;
-  illegalChars: TIllegalChars): string;
+class procedure TRJSONHelper.ClearList(List: TList);
+var
+  i: Integer;
+  o: TObject;
+begin
+  for i := 0 to List.Count - 1 do
+  begin
+    o := TObject(List[i]);
+    o.Free;
+  end;
+end;
+
+class function TRJSONHelper.Trim(s: string; illegalChars: TIllegalChars
+  ): string;
 var
   left: string;
 begin
@@ -508,8 +272,8 @@ begin
   Result := TRJSONHelper.TrimRight(left, illegalChars);
 end;
 
-class function TRJSONHelper.TrimLeft(s: string;
-  illegalChars: TIllegalChars): string;
+class function TRJSONHelper.TrimLeft(s: string; illegalChars: TIllegalChars
+  ): string;
 var
   i, l: Integer;
   c, cc: Char;
@@ -532,8 +296,8 @@ begin
     Result := Copy(s, i+1, l);
 end;
 
-class function TRJSONHelper.TrimRight(s: string;
-  illegalChars: TIllegalChars): string;
+class function TRJSONHelper.TrimRight(s: string; illegalChars: TIllegalChars
+  ): string;
 var
   i, l: Integer;
   c, cc: Char;
@@ -695,18 +459,6 @@ begin
   Result := Copy(Result, 1, Length(Result)-1);
 end;
 
-class procedure TRJSONHelper.ClearList(List: TList);
-var
-  i: Integer;
-  o: TObject;
-begin
-  for i := 0 to List.Count - 1 do
-  begin
-    o := TObject(List[i]);
-    o.Free;
-  end;
-end;
-
 class function TRJSONHelper.StrToBool(s: string): Boolean;
 var
   value: Integer;
@@ -717,12 +469,6 @@ begin
     Exit;
   end;
   Result := LowerCase(s) = 'true';
-end;
-
-class function TRJSONHelper.FloatToStr(Float: Extended; DecimalSeparator: Char = '.'): string;
-begin
-  Result := SysUtils.FloatToStr(Float);
-  Result := TRJSONHelper.ChangeDecimalSeparator(Result, DecimalSeparator);
 end;
 
 class function TRJSONHelper.ChangeDecimalSeparator(StringFloat: string;
@@ -750,6 +496,13 @@ begin
   end;
 end;
 
+class function TRJSONHelper.FloatToStr(Float: Extended; DecimalSeparator: Char
+  ): string;
+begin
+  Result := SysUtils.FloatToStr(Float);
+  Result := TRJSONHelper.ChangeDecimalSeparator(Result, DecimalSeparator);
+end;
+
 class function TRJSONHelper.StrToFloat(StringFloat: string;
   DecimalSeparator: Char): Extended;
 begin
@@ -764,20 +517,305 @@ begin
   Result:= SysUtils.StrToFloatDef(StringFloat, Default);
 end;
 
-{ TRJSONListHelper }
+{ TRJSON }
 
-constructor TRJSONListHelper.Create;
+class function TRJSON.GetValue(Value: string): PValue;
+var
+  tokens: TStringList;
+  v: string;
+  c: Char;
 begin
-  inherited;
+  New(Result);
+  tokens := TStringList.Create;
+  try
+    TRJSONHelper.JSONSplit(tokens, Value, ':');
+    v := Trim(tokens[1]);
+    c := PChar(v)[0];
 
-  fList := TList.Create;
+    Result^.name := tokens[0];
+    Result^.value := tokens[1];
+    if c = BRACKET_OPEN then
+      Result^.vtype := vtArray
+    else if c = BRACKET_CURLY_OPEN then
+      Result^.vtype := vtObject
+    else begin
+      Result^.vtype := vtPrimitive;
+    end;
+  finally
+    tokens.Free;
+  end;
 end;
 
-destructor TRJSONListHelper.Destroy;
+class procedure TRJSON.DoProcessObject(Instance: TObject; JSON: string);
+var
+  tokens: TStringList;
+  i: Integer;
+  token, p: string;
+  v: PValue;
+  propInfo: PPropInfo;
+  value: Variant;
+  o: TObject;
 begin
-  TRJSONHelper.ClearList(fList);
-  fList.Free;
-  inherited;
+  tokens := TStringList.Create;
+  try
+    JSON := TRJSONHelper.Trim(JSON, [BRACKET_CURLY_OPEN, BRACKET_CURLY_CLOSE]);
+    TRJSONHelper.JSONSplit(tokens, JSON);
+    for i := 0 to tokens.Count - 1 do
+    begin
+      token := tokens[i];
+      v := GetValue(token);
+      try
+      if v^.vtype = vtPrimitive then
+      begin
+        p := Copy(v^.name, 2, Length(v^.name)-2);
+        try
+          propInfo := GetPropInfo(Instance, p);
+          if propInfo <> nil then
+          begin
+            value := TRJSONHelper.Unescape(TRJSONHelper.Trim(v^.value, ['"']));
+            if propInfo^.PropType^.Name = 'Boolean' then
+              value := TRJSONHelper.StrToBool(value)
+            else if propInfo^.PropType^.Name = 'Double' then
+              value := TRJSONHelper.StrToFloatDef(value)
+            else if (propInfo^.PropType^.Name = 'SmallInt') or (propInfo^.PropType^.Name = 'Integer')
+              or (propInfo^.PropType^.Name = 'LargeInt') then
+              value := StrToIntDef(value, 0)
+            else if propInfo^.PropType^.Name = 'TDateTime' then
+              value := UnixToDateTime(StrToIntDef(value, 0))
+            else if ((propInfo^.PropType^.Name = 'String') or (propInfo^.PropType^.Name = 'AnsiString')) and (value = 'null') then
+                value := '';
+
+            SetPropValue(Instance, p, value);
+          end;
+        except
+        end;
+      end
+      else if v^.vtype = vtObject then
+      begin
+        v^.name := TRJSONHelper.Trim(v^.name, ['"']);
+        o := GetObjectProp(Instance, v^.name);
+        DoProcessObject(o, v^.value);
+      end
+      else if v^.vtype = vtArray then
+        DoProcessArray(Instance, v);
+      finally
+        Dispose(v);
+      end;
+    end;
+  finally
+    tokens.Free;
+  end;
+end;
+
+class procedure TRJSON.DoProcessArray(Instance: TObject; V: PValue);
+var
+  i: Integer;
+  item: TCollectionItem;
+  objList: TCollection;
+  tokens: TStringList;
+  token, s, name: string;
+begin
+  name := TRJSONHelper.Trim(V^.name, ['"']);
+  objList := TCollection(GetObjectProp(Instance, name));
+  tokens := TStringList.Create;
+  try
+    s := Copy(V^.value, 2, Length(V^.value)-2);
+    TRJSONHelper.JSONSplit(tokens, s);
+
+    for i := 0 to tokens.Count - 1 do
+    begin
+      token := tokens[i];
+      item := objList.Add;
+
+      DoProcessObject(item, token);
+    end;
+  finally
+    tokens.Free;
+  end;
+end;
+
+class function TRJSON.DoToJSON(AObject: TObject;
+  AJSONOption: TRJSONOption): string;
+var
+  count: Integer;
+  list: PPropList;
+  propInfo: PPropInfo;
+  objList: TList;
+  objCollection: TCollection;
+  oo: TObject;
+  i, len: Integer;
+  ii: Integer;
+  el, value: string;
+begin
+  if AJSONOption = joIndexed then
+    Result := BRACKET_OPEN
+  else
+    Result := BRACKET_CURLY_OPEN;
+
+  if AObject = nil then
+    Exit;
+
+  count := GetPropList(AObject, list);
+  try
+    for i := 0 to count - 1 do
+    begin
+      propInfo := list^[i];
+      if (propInfo^.PropType^.Name = 'TCollection') then
+      begin
+        objCollection:= TCollection(GetObjectProp(AObject, propInfo^.Name));
+        if objCollection.Count > 0 then
+        begin
+          el := BRACKET_OPEN;
+          if AJSONOption = joAssociate then
+            el := Format('"%s":%s', [propInfo^.Name, BRACKET_OPEN]);
+        end
+        else begin
+          if AJSONOption = joAssociate then
+            el := Format('"%s":%s', [propInfo^.Name, '[]']);
+        end;
+
+        Result := Result + el;
+
+        for ii := 0 to objCollection.Count - 1 do
+        begin
+          oo := TObject(objCollection.Items[ii]);
+          Result := Result + DoToJSON(oo, AJSONOption);
+        end;
+
+        if objCollection.Count > 0 then
+          Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ','
+        else
+          Result := Copy(Result, 0, Length(Result)) + ',';
+      end
+      else if (propInfo^.PropType^.Name = LIST_CLASS_NAME) then
+      begin
+        objList := TList(GetObjectProp(AObject, propInfo^.Name));
+        if objList.Count > 0 then
+        begin
+          el := BRACKET_OPEN;
+          if AJSONOption = joAssociate then
+            el := Format('"%s":%s', [propInfo^.Name, BRACKET_OPEN]);
+        end
+        else begin
+          if AJSONOption = joAssociate then
+            el := Format('"%s":%s', [propInfo^.Name, '[]']);
+        end;
+
+        Result := Result + el;
+
+        for ii := 0 to objList.Count - 1 do
+        begin
+          oo := TObject(objList[ii]);
+          Result := Result + DoToJSON(oo, AJSONOption);
+        end;
+
+        if objList.Count > 0 then
+          Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ','
+        else
+          Result := Copy(Result, 0, Length(Result)) + ',';
+      end
+      else if (propInfo^.PropType^.Kind = tkClass) then
+      begin
+        oo := GetObjectProp(AObject, propInfo^.Name);
+        if oo <> nil then
+        begin
+          el := '';
+          if AJSONOption = joAssociate then
+            el := Format('"%s":', [propInfo^.Name]);
+
+          Result := Result + el + DoToJSON(oo, AJSONOption);
+        end;
+      end
+      else begin
+        value := VarToStr(GetPropValue(AObject, propInfo^.Name));
+        if value = '' then
+          value := 'null'
+        else if propInfo^.PropType^.Name = 'Double' then
+          value := TRJSONHelper.ChangeDecimalSeparator(value, '.')
+        else if propInfo^.PropType^.Name = 'TDateTime' then
+          value := IntToStr(DateTimeToUnix(VarToDateTime(GetPropValue(AObject, propInfo^.Name))))
+        else if propInfo^.PropType^.Name = 'Boolean' then
+          value := LowerCase(value)
+        else if ((propInfo^.PropType^.Kind = tkString) or (propInfo^.PropType^.Kind = tkChar) or
+        (propInfo^.PropType^.Kind = tkWChar) or (propInfo^.PropType^.Kind = tkLString) or
+        (propInfo^.PropType^.Kind = tkWString) or (propInfo^.PropType^.Kind = tkUString) or
+        (propInfo^.PropType^.Kind = tkAString))
+        and (value <> 'null') then
+
+        value := '"' + TRJSONHelper.Escape(value) + '"';
+
+        if AJSONOption = joAssociate then
+        begin
+          el := '"%s":%s';
+          el := Format(el, [propInfo^.Name, value]);
+        end
+        else
+          el := value;
+
+        Result := Result + el + ',';
+      end
+    end;
+  finally
+    Dispose(list);
+  end;
+
+  if AJSONOption = joIndexed then
+    Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CLOSE + ','
+  else
+    Result := Copy(Result, 0, Length(Result) - 1) + BRACKET_CURLY_CLOSE + ',';
+end;
+
+class procedure TRJSON.ToObject(Instance: TObject; const JSON: string);
+begin
+  DoProcessObject(Instance, JSON);
+end;
+
+class procedure TRJSON.Clone(Dest, Source: TObject);
+var
+  count: Integer;
+  list: PPropList;
+  i: Integer;
+  pi: PPropInfo;
+  v: Variant;
+begin
+  count := GetPropList(Source, list);
+  for i := 0 to count - 1 do
+  begin
+    pi := list^[i];
+    v := GetPropValue(Source, pi^.Name);
+    SetPropValue(Dest, pi^.Name, v);
+  end;
+end;
+
+procedure TRJSON.Clone(Dest: TObject);
+begin
+  TRJSON.Clone(Dest, Self);
+end;
+
+class function TRJSON.ToJSON(AObject: TObject; AJSONOption: TRJSONOption
+  ): string;
+begin
+  Result := DoToJSON(AObject, AJSONOption);
+  Result := Copy(Result, 0, Length(Result) - 1);
+end;
+
+function TRJSON.ToJSON(AJSONOption: TRJSONOption): string;
+begin
+  Result := DoToJSON(Self, AJSONOption);
+  Result := Copy(Result, 0, Length(Result) - 1);
+end;
+
+{ TRJSONListHelper }
+
+constructor TRJSONListHelper.Create(AList: TList);
+begin
+  FList := AList;
+end;
+
+destructor TRJSONListHelper.Destroy();
+begin
+  TRJSONHelper.ClearList(FList);
+  FList.Free;
 end;
 
 end.
